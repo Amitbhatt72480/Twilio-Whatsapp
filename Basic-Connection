@@ -1,0 +1,56 @@
+exports.handler = function(context, event, callback) {
+    const twiml = new Twilio.twiml.MessagingResponse();
+
+    // Extract user's message
+    const userMessage = event.Body.toLowerCase().trim();
+    const userPhoneNumber = event.From;
+
+    // Check if the user is providing their name
+    if (userMessage.startsWith('my name is ')) {
+        const userName = userMessage.substring(11).trim(); // Extracting the name provided by the user
+        twiml.message('Got your name could you please provide me your Age');
+        
+
+        // Prepare the data to be sent to ServiceNow
+        const serviceNowData = {
+            "u_full_name": userName
+            // Add more fields as needed
+        };
+
+        // Construct the request options
+        const requestOptions = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + Buffer.from('admin' + ':' + '/B-X0PhdZ5zf').toString('base64') // Replace with your ServiceNow username and password
+            },
+            body: JSON.stringify(serviceNowData)
+        };
+
+        // Replace 'YOUR_SERVICE_NOW_API_ENDPOINT' with the actual endpoint of your ServiceNow instance
+        const serviceNowUrl = 'https://dev80757.service-now.com/api/now/table/u_user_information_via_twilio';
+
+        // Make the HTTP request using fetch API
+        fetch(serviceNowUrl, requestOptions)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('ServiceNow API request failed: ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Confirmation message to the user
+                twiml.message(`Thank you, ${userName}! Your name has been successfully recorded.`);
+                callback(null, twiml);
+            })
+            .catch(error => {
+                console.error('Error inserting data into ServiceNow:', error);
+                twiml.message('Sorry, something went wrong. Please try again later.');
+                callback(null, twiml);
+            });
+    } else {
+        // Default response if the user's message doesn't contain their name
+        twiml.message('To provide your name, please start your message with "My name is <your name>".');
+        callback(null, twiml);
+    }
+};
